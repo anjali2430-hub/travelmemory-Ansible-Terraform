@@ -179,9 +179,55 @@ The only public entry points are nginx on ports 80/443 and SSH from the administ
 | Env vars, start Node.js app, React ↔ Express | `roles/app`, `roles/nginx` |
 | Firewalls, SGs, SSH keys, disable root login | `roles/common`, `terraform/security.tf` |
 | Report | this file |
-| Screenshots | `docs/screenshots/` |
+| Screenshots | `docs/screenshots/aws/` (AWS deployment), `docs/screenshots/` (lab tests) |
 
-## 8. Screenshots
+## 8. AWS deployment evidence
+
+The stack was deployed to AWS account region **ap-south-1 (Mumbai)** with `project_name = "travelmemory-anjali"`.
+Web server public IP: **65.0.23.205**. DB server private IP: 10.0.2.228.
+
+**Terraform: init, plan and apply**
+
+![](screenshots/aws/a01-terraform-apply-start.png)
+![](screenshots/aws/a02-terraform-apply-complete.png)
+
+**Ansible: configuration and deployment (`failed=0`, smoke test passes)**
+
+![](screenshots/aws/a03-ansible-run-start.png)
+![](screenshots/aws/a04-ansible-recap.png)
+
+**Working application at http://65.0.23.205**
+
+| | |
+|---|---|
+| ![](screenshots/aws/a05-app-home-empty.png) Fresh deployment, empty database | ![](screenshots/aws/a06-app-trip-saved.png) Trip saved through the React form (React → nginx → Express → MongoDB) |
+| ![](screenshots/aws/a07-app-home-with-trip.png) Trip listed on the home page | ![](screenshots/aws/a08-api-health.png) `/api/health`: Express connected to MongoDB |
+
+**VPC and networking**
+
+![](screenshots/aws/a09-vpc.png)
+![](screenshots/aws/a10-subnets.png)
+
+| | |
+|---|---|
+| ![](screenshots/aws/a11-route-table-public.png) Public route table: `0.0.0.0/0 → igw` | ![](screenshots/aws/a12-route-table-private.png) Private route table: `0.0.0.0/0 → nat` |
+| ![](screenshots/aws/a13-internet-gateway.png) Internet Gateway attached to the VPC | ![](screenshots/aws/a14-nat-gateway.png) NAT Gateway available in the public subnet |
+
+**EC2, security groups and IAM**
+
+![](screenshots/aws/a15-ec2-instances.png)
+
+| | |
+|---|---|
+| ![](screenshots/aws/a16-sg-web-inbound.png) Web SG: 80/443 from anywhere, 22 from the admin /32 only | ![](screenshots/aws/a17-sg-db-inbound.png) DB SG: 27017 and 22 only from the web SG |
+
+![](screenshots/aws/a18-iam-role.png)
+
+The web instance has a public IP and the DB instance has none. Both pass 3/3 status checks. The IAM role carries AmazonSSMManagedInstanceCore, CloudWatchAgentServerPolicy and the inline read-params policy.
+
+## 9. Pre-deployment test screenshots (local lab)
+
+These were captured while testing the playbooks against the Docker lab (web `10.0.1.10`) before the AWS deployment.
 
 **Application (React → nginx → Express → MongoDB)**
 
@@ -206,13 +252,11 @@ The only public entry points are nginx on ports 80/443 and SSH from the administ
 ![](screenshots/13-mongodb-users-and-data.png)
 ![](screenshots/14-backend-env.png)
 
-> AWS console screenshots (VPC, subnets, route tables, NAT/IGW, EC2, security groups, IAM role, `terraform apply`) are taken after running against a real AWS account; see the checklist in the README.
-
-## 9. Cost and clean-up
+## 10. Cost and clean-up
 
 The NAT Gateway, two Elastic IPs and two t3.small instances are billed per hour. Run `terraform destroy` when you have finished capturing evidence.
 
-## 10. Possible improvements
+## 11. Possible improvements
 
 - HTTPS with a domain and Let's Encrypt (certbot role), then redirect 80 → 443.
 - Read the MongoDB passwords at deploy time from SSM Parameter Store, where the instance role already has scoped read access.

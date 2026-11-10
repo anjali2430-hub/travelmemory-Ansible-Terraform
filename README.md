@@ -5,7 +5,11 @@ Deploys the [TravelMemory](https://github.com/UnpredictablePrashant/TravelMemory
 - **Terraform** builds the infrastructure: VPC, public and private subnets, Internet Gateway, NAT Gateway, route tables, security groups, an IAM role and two EC2 instances.
 - **Ansible** configures the servers: OS hardening, MongoDB on the private DB server, and Node.js, the Express API, the React build and nginx on the public web server.
 
-The full write-up is in **[docs/REPORT.md](docs/REPORT.md)**. Screenshots are in [docs/screenshots](docs/screenshots).
+The full write-up is in **[docs/REPORT.md](docs/REPORT.md)**. AWS deployment screenshots are in [docs/screenshots/aws](docs/screenshots/aws); local test screenshots are in [docs/screenshots](docs/screenshots).
+
+**Deployed on AWS (ap-south-1):** the app ran at `http://65.0.23.205` with `{"status":"ok","db":"connected"}` from `/api/health`.
+
+![TravelMemory running on AWS](docs/screenshots/aws/a06-app-trip-saved.png)
 
 ```mermaid
 flowchart LR
@@ -103,7 +107,7 @@ cd ../terraform && terraform destroy
 
 ## Screenshots to take on AWS
 
-The `docs/screenshots` folder already holds the app and lab evidence (see the [lab section](#how-this-was-tested)). When you deploy to your own AWS account, add these:
+The captured AWS screenshots are in [docs/screenshots/aws](docs/screenshots/aws) and in section 8 of the report. The checklist used:
 
 | # | What to capture | Where |
 |---|-----------------|-------|
