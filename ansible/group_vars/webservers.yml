@@ -1,0 +1,9 @@
+---
+# Host firewall on the web server (on top of the AWS security group)
+common_ufw_rules:
+  - { rule: limit, port: "{{ common_ssh_port }}", proto: tcp, from: "{{ admin_cidr }}", comment: "SSH from admin IP" }
+  - { port: "80", proto: tcp, from: any, comment: "HTTP" }
+  - { port: "443", proto: tcp, from: any, comment: "HTTPS" }
+
+# Bastion: must allow TCP forwarding so Ansible can ProxyJump to the DB server
+common_ssh_allow_tcp_forwarding: "yes"

@@ -1,0 +1,13 @@
+---
+# Lab only: the official MongoDB / NodeSource repos are unreachable from the sandbox, so the
+# same packages are served from a GPG-signed local mirror. Roles and tasks are unchanged.
+mongodb_apt_key_url: http://10.0.0.1:8080/lab-repo.asc
+mongodb_repo_uri: http://10.0.0.1:8080
+mongodb_repo_suite: jammy
+mongodb_repo_components: main
+nodejs_apt_key_url: http://10.0.0.1:8080/lab-repo.asc
+nodejs_repo_uri: http://10.0.0.1:8080
+nodejs_repo_suite: jammy
+
+# The sandbox kernel has no IPv6 (EC2 does)
+nginx_listen_ipv6: false

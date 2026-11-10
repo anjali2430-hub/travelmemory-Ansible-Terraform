@@ -1,0 +1,5 @@
+---
+# Copy to vault.yml, set strong passwords, then encrypt:
+#   ansible-vault encrypt inventory/group_vars/all/vault.yml
+vault_mongodb_admin_password: "change-me-admin-password"
+vault_mongodb_app_password: "change-me-app-password"

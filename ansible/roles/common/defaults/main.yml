@@ -1,0 +1,17 @@
+---
+common_ssh_port: 22
+common_ssh_allow_tcp_forwarding: "no"
+common_swap_size_mb: 2048
+common_ufw_rules: []
+common_packages:
+  - ca-certificates
+  - curl
+  - gnupg
+  - git
+  - acl
+  - ufw
+  - fail2ban
+  - unattended-upgrades
+  - python3-pip
+  - python3-debian
+  - tzdata

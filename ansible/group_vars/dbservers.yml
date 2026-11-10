@@ -1,0 +1,7 @@
+---
+# Host firewall on the DB server: only the web server may connect
+common_ufw_rules:
+  - { rule: limit, port: "{{ common_ssh_port }}", proto: tcp, from: "{{ hostvars[groups['webservers'][0]]['private_ip'] }}", comment: "SSH from bastion" }
+  - { port: "{{ mongodb_port }}", proto: tcp, from: "{{ hostvars[groups['webservers'][0]]['private_ip'] }}", comment: "MongoDB from web server" }
+
+common_ssh_allow_tcp_forwarding: "no"

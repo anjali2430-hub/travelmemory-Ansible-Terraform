@@ -1,0 +1,10 @@
+Assignment: Deploying a MERN Application through Terraform and Ansible
+Student: <your name>
+
+GitHub repository: https://github.com/<your-username>/mern-terraform-ansible
+
+Contents:
+- terraform/          Terraform scripts for the AWS infrastructure
+- ansible/            Ansible playbooks and roles for configuration and deployment
+- docs/REPORT.md      Detailed implementation report
+- docs/screenshots/   Screenshots of the working MERN application and the deployment

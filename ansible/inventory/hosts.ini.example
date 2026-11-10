@@ -1,0 +1,16 @@
+# Example of the inventory Terraform writes to inventory/hosts.ini
+[webservers]
+web ansible_host=13.233.10.20 private_ip=10.0.1.25
+
+[dbservers]
+db ansible_host=10.0.2.40 private_ip=10.0.2.40
+
+[all:vars]
+ansible_user=ubuntu
+ansible_ssh_private_key_file=keys/travelmemory-key.pem
+public_host=13.233.10.20
+admin_cidr=203.0.113.10/32
+vpc_cidr=10.0.0.0/16
+
+[dbservers:vars]
+ansible_ssh_common_args='-o ProxyCommand="ssh -W %h:%p -q -i keys/travelmemory-key.pem -o StrictHostKeyChecking=accept-new ubuntu@13.233.10.20"'

@@ -1,0 +1,19 @@
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+terraform.tfvars
+.terraform.lock.hcl
+
+# Secrets and generated files
+ansible/keys/
+ansible/inventory/hosts.ini
+ansible/group_vars/all/vault.yml
+*.pem
+.vault_pass*
+
+# Misc
+*.retry
+.DS_Store

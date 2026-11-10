@@ -1,0 +1,135 @@
+---
+- name: Wait for cloud-init to finish (first boot runs its own apt)
+  ansible.builtin.command: cloud-init status --wait
+  changed_when: false
+  failed_when: false
+
+- name: Update apt cache and apply security updates
+  ansible.builtin.apt:
+    update_cache: true
+    upgrade: safe
+
+- name: Install base packages
+  ansible.builtin.apt:
+    name: "{{ common_packages }}"
+    state: present
+
+# ---------------------------------------------------------------- Swap (React build needs memory)
+- name: Check for swap file
+  ansible.builtin.stat:
+    path: /swapfile
+  register: common_swapfile
+
+- name: Create and enable swap
+  when: not common_swapfile.stat.exists and common_swap_size_mb | int > 0
+  block:
+    - name: Allocate swap file
+      ansible.builtin.command: "fallocate -l {{ common_swap_size_mb }}M /swapfile"
+      changed_when: true
+    - name: Restrict swap file permissions
+      ansible.builtin.file:
+        path: /swapfile
+        mode: "0600"
+    - name: Format swap
+      ansible.builtin.command: mkswap /swapfile
+      changed_when: true
+    - name: Turn on swap
+      ansible.builtin.command: swapon /swapfile
+      changed_when: true
+      failed_when: false # not allowed inside some containers
+
+- name: Persist swap in fstab
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    line: "/swapfile none swap sw 0 0"
+    create: true
+    mode: "0644"
+  when: common_swap_size_mb | int > 0
+
+# ---------------------------------------------------------------- SSH hardening
+- name: Harden sshd (key-only, no root, short timeouts)
+  ansible.builtin.template:
+    src: sshd_hardening.conf.j2
+    dest: /etc/ssh/sshd_config.d/00-hardening.conf
+    owner: root
+    group: root
+    mode: "0644"
+    validate: /usr/sbin/sshd -t -f %s
+  notify: Restart ssh
+
+- name: Lock the root account password
+  ansible.builtin.user:
+    name: root
+    password_lock: true
+
+# ---------------------------------------------------------------- Kernel / network hardening
+- name: Kernel network hardening
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/90-hardening.conf
+    reload: true
+  loop: "{{ sysctl_hardening | dict2items }}"
+  vars:
+    sysctl_hardening:
+      net.ipv4.conf.all.accept_redirects: 0
+      net.ipv4.conf.all.send_redirects: 0
+      net.ipv4.conf.all.accept_source_route: 0
+      net.ipv4.conf.all.rp_filter: 1
+      net.ipv4.tcp_syncookies: 1
+      net.ipv4.icmp_echo_ignore_broadcasts: 1
+
+# ---------------------------------------------------------------- Firewall (UFW)
+- name: UFW deny incoming by default
+  community.general.ufw:
+    direction: incoming
+    default: deny
+
+- name: UFW allow outgoing by default
+  community.general.ufw:
+    direction: outgoing
+    default: allow
+
+# SSH rules use "limit" (rate limiting) but stay restricted to their source address
+- name: UFW allow rules (added before enabling so SSH is never cut off)
+  community.general.ufw:
+    rule: "{{ item.rule | default('allow') }}"
+    port: "{{ item.port }}"
+    proto: "{{ item.proto }}"
+    from_ip: "{{ item.from }}"
+    comment: "{{ item.comment }}"
+  loop: "{{ common_ufw_rules }}"
+
+- name: Enable UFW
+  community.general.ufw:
+    state: enabled
+    logging: "low"
+
+# ---------------------------------------------------------------- Brute force protection and auto updates
+- name: Configure fail2ban for sshd
+  ansible.builtin.copy:
+    dest: /etc/fail2ban/jail.d/sshd.local
+    mode: "0644"
+    content: |
+      [sshd]
+      enabled  = true
+      backend  = systemd
+      port     = {{ common_ssh_port }}
+      maxretry = 5
+      findtime = 10m
+      bantime  = 1h
+  notify: Restart fail2ban
+
+- name: Enable fail2ban
+  ansible.builtin.service:
+    name: fail2ban
+    state: started
+    enabled: true
+
+- name: Enable unattended security upgrades
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    mode: "0644"
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";

@@ -1,0 +1,24 @@
+---
+# ---------------- MongoDB
+mongodb_version: "7.0"
+mongodb_port: 27017
+mongodb_admin_user: admin
+mongodb_admin_password: "{{ vault_mongodb_admin_password }}"
+mongodb_app_db: travelmemory
+mongodb_app_user: travelmemory
+mongodb_app_password: "{{ vault_mongodb_app_password }}"
+
+# ---------------- App
+app_repo: https://github.com/UnpredictablePrashant/TravelMemory.git
+app_version: main
+app_user: travelmemory
+app_dir: /opt/travelmemory
+app_port: 3001
+app_web_root: /var/www/travelmemory
+# Frontend calls the API on the same origin; nginx forwards /api/* to Express
+app_backend_url: /api
+nodejs_major: 20
+
+# ---------------- Hardening
+common_ssh_port: 22
+common_swap_size_mb: 2048

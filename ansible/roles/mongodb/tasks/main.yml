@@ -1,0 +1,94 @@
+---
+# ---------------------------------------------------------------- Install from the official MongoDB repo
+- name: Add the official MongoDB apt repository (key is fetched and pinned to this repo)
+  ansible.builtin.deb822_repository:
+    name: mongodb-org-{{ mongodb_version }}
+    types: deb
+    uris: "{{ mongodb_repo_uri }}"
+    suites: "{{ mongodb_repo_suite }}"
+    components: "{{ mongodb_repo_components }}"
+    architectures: amd64
+    signed_by: "{{ mongodb_apt_key_url }}"
+    state: present
+
+- name: Install MongoDB
+  ansible.builtin.apt:
+    name: "{{ mongodb_packages }}"
+    state: present
+    update_cache: true
+
+- name: Install PyMongo (used by Ansible to manage users)
+  ansible.builtin.pip:
+    name: pymongo>=4.6,<5
+    extra_args: "{{ '--break-system-packages' if ansible_facts['distribution_major_version'] | int >= 24 else omit }}"
+
+# ---------------------------------------------------------------- Secure configuration
+- name: Configure mongod (auth on, bound to localhost + private IP only)
+  ansible.builtin.template:
+    src: mongod.conf.j2
+    dest: /etc/mongod.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart mongod
+
+- name: Start and enable mongod
+  ansible.builtin.service:
+    name: mongod
+    state: started
+    enabled: true
+
+- name: Apply config changes now
+  ansible.builtin.meta: flush_handlers
+
+- name: Wait for MongoDB to accept connections
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: "{{ mongodb_port }}"
+    timeout: 60
+
+# ---------------------------------------------------------------- Users and database
+# First run: authorization is already enabled, so the admin user is created through
+# MongoDB's localhost exception; the marker file makes later runs log in normally.
+- name: Create the admin user
+  community.mongodb.mongodb_user:
+    login_host: 127.0.0.1
+    login_port: "{{ mongodb_port }}"
+    # No login_user: connect via the localhost exception, then touch the marker file
+    create_for_localhost_exception: "{{ mongodb_users_marker }}"
+    update_password: always
+    database: admin
+    name: "{{ mongodb_admin_user }}"
+    password: "{{ mongodb_admin_password }}"
+    roles:
+      - { db: admin, role: userAdminAnyDatabase }
+      - { db: admin, role: dbAdminAnyDatabase }
+      - { db: admin, role: readWriteAnyDatabase }
+      - { db: admin, role: clusterMonitor }
+    state: present
+  no_log: true
+
+- name: Create the application user (readWrite on the app database only)
+  community.mongodb.mongodb_user:
+    login_host: 127.0.0.1
+    login_port: "{{ mongodb_port }}"
+    login_user: "{{ mongodb_admin_user }}"
+    login_password: "{{ mongodb_admin_password }}"
+    login_database: admin
+    database: "{{ mongodb_app_db }}"
+    name: "{{ mongodb_app_user }}"
+    password: "{{ mongodb_app_password }}"
+    roles:
+      - { db: "{{ mongodb_app_db }}", role: readWrite }
+    update_password: on_create
+    state: present
+  no_log: true
+
+- name: Unauthenticated access is refused (auth is enforced)
+  ansible.builtin.command: >
+    python3 -c "import pymongo;
+    c=pymongo.MongoClient('mongodb://127.0.0.1:{{ mongodb_port }}', serverSelectionTimeoutMS=5000);
+    c['{{ mongodb_app_db }}'].list_collection_names()"
+  register: mongodb_anon_check
+  changed_when: false
+  failed_when: mongodb_anon_check.rc == 0

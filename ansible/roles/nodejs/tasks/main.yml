@@ -1,0 +1,26 @@
+---
+- name: Add the NodeSource apt repository
+  ansible.builtin.deb822_repository:
+    name: nodesource
+    types: deb
+    uris: "{{ nodejs_repo_uri }}"
+    suites: "{{ nodejs_repo_suite }}"
+    components: main
+    architectures: amd64
+    signed_by: "{{ nodejs_apt_key_url }}"
+    state: present
+
+- name: Install Node.js (bundles npm)
+  ansible.builtin.apt:
+    name: nodejs
+    state: present
+    update_cache: true
+
+- name: Report versions
+  ansible.builtin.shell: "node --version && npm --version"
+  register: nodejs_versions
+  changed_when: false
+
+- name: Show Node.js / npm versions
+  ansible.builtin.debug:
+    msg: "node {{ nodejs_versions.stdout_lines[0] }}, npm {{ nodejs_versions.stdout_lines[1] }}"

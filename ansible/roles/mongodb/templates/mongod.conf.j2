@@ -1,0 +1,23 @@
+# Managed by Ansible
+storage:
+  dbPath: /var/lib/mongodb
+
+systemLog:
+  destination: file
+  logAppend: true
+  path: /var/log/mongodb/mongod.log
+
+net:
+  port: {{ mongodb_port }}
+  # Never 0.0.0.0: only loopback and the private VPC address
+  bindIp: {{ mongodb_bind_ips }}
+
+processManagement:
+  timeZoneInfo: /usr/share/zoneinfo
+
+security:
+  authorization: enabled
+  javascriptEnabled: false
+
+setParameter:
+  enableLocalhostAuthBypass: true

@@ -1,0 +1,49 @@
+---
+# Full deployment: ansible-playbook site.yml --ask-vault-pass
+- name: Baseline and hardening on every server
+  hosts: all
+  become: true
+  roles:
+    - common
+
+- name: Database server - MongoDB
+  hosts: dbservers
+  become: true
+  roles:
+    - mongodb
+
+- name: Web server - Node.js, TravelMemory app and nginx
+  hosts: webservers
+  become: true
+  vars:
+    # The backend reaches MongoDB on the DB server's private IP
+    mongo_host: "{{ hostvars[groups['dbservers'][0]]['private_ip'] }}"
+  roles:
+    - nodejs
+    - nginx
+    - app
+
+- name: Smoke test the deployment end to end
+  hosts: webservers
+  become: false
+  gather_facts: false
+  tasks:
+    - name: API health (Express <-> MongoDB)
+      ansible.builtin.uri:
+        url: http://127.0.0.1/api/health
+        return_content: true
+      register: health
+      retries: 10
+      delay: 3
+      until: health.status == 200
+
+    - name: Frontend is served
+      ansible.builtin.uri:
+        url: http://127.0.0.1/
+        return_content: true
+      register: home
+      failed_when: "'<div id=\"root\">' not in home.content"
+
+    - name: Show result
+      ansible.builtin.debug:
+        msg: "TravelMemory is live at http://{{ public_host }} - health: {{ health.json }}"

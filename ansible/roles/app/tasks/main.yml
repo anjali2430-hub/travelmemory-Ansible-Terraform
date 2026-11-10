@@ -1,0 +1,120 @@
+---
+- name: Create unprivileged service account
+  ansible.builtin.user:
+    name: "{{ app_user }}"
+    system: true
+    home: "{{ app_dir }}"
+    shell: /usr/sbin/nologin
+    create_home: true
+
+- name: Make app home private
+  ansible.builtin.file:
+    path: "{{ app_dir }}"
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_user }}"
+    mode: "0750"
+
+# ---------------------------------------------------------------- Source
+- name: Clone the TravelMemory repository
+  ansible.builtin.git:
+    repo: "{{ app_repo }}"
+    dest: "{{ app_dir }}/src"
+    version: "{{ app_version }}"
+    force: true
+  become: true
+  become_user: "{{ app_user }}"
+  register: app_repo_result
+  notify: Restart travelmemory-backend
+
+# ---------------------------------------------------------------- Backend (Express)
+- name: Check for installed backend dependencies
+  ansible.builtin.stat:
+    path: "{{ app_dir }}/src/backend/node_modules"
+  register: app_backend_modules
+
+- name: Install backend dependencies
+  community.general.npm:
+    path: "{{ app_dir }}/src/backend"
+    ci: true
+    production: true
+  become: true
+  become_user: "{{ app_user }}"
+  when: app_repo_result.changed or not app_backend_modules.stat.exists
+  notify: Restart travelmemory-backend
+
+- name: Backend environment file
+  ansible.builtin.template:
+    src: backend.env.j2
+    dest: "{{ app_dir }}/src/backend/.env"
+    owner: "{{ app_user }}"
+    group: "{{ app_user }}"
+    mode: "0600"
+  notify: Restart travelmemory-backend
+
+- name: Uploads directory
+  ansible.builtin.file:
+    path: "{{ app_dir }}/uploads"
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_user }}"
+    mode: "0750"
+
+- name: Systemd unit for the backend
+  ansible.builtin.template:
+    src: travelmemory-backend.service.j2
+    dest: /etc/systemd/system/travelmemory-backend.service
+    mode: "0644"
+  notify: Restart travelmemory-backend
+
+- name: Start and enable the backend
+  ansible.builtin.systemd:
+    name: travelmemory-backend
+    state: started
+    enabled: true
+    daemon_reload: true
+
+# ---------------------------------------------------------------- Frontend (React)
+- name: Frontend build-time environment
+  ansible.builtin.template:
+    src: frontend.env.j2
+    dest: "{{ app_dir }}/src/frontend/.env.production.local"
+    owner: "{{ app_user }}"
+    group: "{{ app_user }}"
+    mode: "0644"
+  register: app_fe_env
+
+- name: Check for an existing frontend build
+  ansible.builtin.stat:
+    path: "{{ app_web_root }}/index.html"
+  register: app_fe_build
+
+- name: Build the React frontend
+  when: app_repo_result.changed or app_fe_env.changed or not app_fe_build.stat.exists
+  block:
+    - name: Install frontend dependencies
+      community.general.npm:
+        path: "{{ app_dir }}/src/frontend"
+        ci: true
+      become: true
+      become_user: "{{ app_user }}"
+
+    - name: Run npm run build
+      ansible.builtin.command: npm run build
+      args:
+        chdir: "{{ app_dir }}/src/frontend"
+      environment:
+        GENERATE_SOURCEMAP: "false"
+        NODE_OPTIONS: "--max-old-space-size=1536"
+      become: true
+      become_user: "{{ app_user }}"
+      changed_when: true
+
+    - name: Publish build to the nginx web root
+      ansible.builtin.copy:
+        src: "{{ app_dir }}/src/frontend/build/"
+        dest: "{{ app_web_root }}/"
+        remote_src: true
+        owner: root
+        group: www-data
+        mode: "u=rwX,g=rX,o=rX"

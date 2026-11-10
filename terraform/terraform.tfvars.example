@@ -1,0 +1,9 @@
+# Copy to terraform.tfvars and adjust.
+aws_region   = "ap-south-1"
+project_name = "travelmemory"
+
+# Your IP for SSH. Leave out to auto-detect.
+# admin_cidr = "203.0.113.10/32"
+
+# web_instance_type = "t3.small"
+# db_instance_type  = "t3.small"
